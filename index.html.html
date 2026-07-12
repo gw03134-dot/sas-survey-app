@@ -106,7 +106,7 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0}
 <div id="standalone-warning" style="display:none;background:#7A3200;color:#fff;padding:10px 14px;font-size:13px;line-height:1.5;position:sticky;top:0;z-index:9999;text-align:center"></div>
 <script>
 // APP VERSION - increment on every update
-const APP_VERSION='v2.2 (29 Jun)';
+const APP_VERSION='v2.4 (12 Jul)';
 (function(){
   const w=document.getElementById('standalone-warning');
   const isHttps=location.protocol==='https:';
@@ -1412,6 +1412,52 @@ const PHOTO_PICKER_TARGET_KEY='sas_photo_picker_target'; // kept for backward co
 // Prevent double-firing (change+input can both fire)
 const _handledInputs=new WeakSet();
 
+// Try to compress a photo file to a JPEG data URL (~1100px, q0.72).
+// Succeeds for JPEG/PNG/WebP (camera photos). Fails for HEIC — Samsung
+// Chrome cannot decode HEIC at all — in which case cb(null) and the
+// caller stores the raw file instead (larger, but Word can display it).
+function tryCompressPhoto(file, cb){
+  const blobUrl=URL.createObjectURL(file);
+  const img=new Image();
+  const done=v=>{URL.revokeObjectURL(blobUrl);cb(v);};
+  const timer=setTimeout(()=>done(null),12000);
+  img.onload=()=>{
+    clearTimeout(timer);
+    try{
+      let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+      if(!w||!h){done(null);return;}
+      const MAX=1100;
+      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}
+      else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      const ctx=c.getContext('2d');
+      if(!ctx){done(null);return;}
+      ctx.drawImage(img,0,0,w,h);
+      c.toBlob(b=>{
+        if(!b){done(null);return;}
+        const r=new FileReader();
+        r.onload=()=>done(r.result);
+        r.onerror=()=>done(null);
+        r.readAsDataURL(b);
+      },'image/jpeg',0.72);
+    }catch(e){done(null);}
+  };
+  img.onerror=()=>{clearTimeout(timer);done(null);};
+  img.src=blobUrl;
+}
+
+// Get storable data URL for a photo: compressed JPEG when the browser can
+// decode it, raw bytes otherwise (HEIC).
+function photoToStorableDataUrl(file, cb){
+  tryCompressPhoto(file, compressed=>{
+    if(compressed){cb(compressed);return;}
+    const r=new FileReader();
+    r.onload=e=>cb(e.target.result||null);
+    r.onerror=()=>cb(null);
+    r.readAsDataURL(file);
+  });
+}
+
 function handlePhotoFile(file, target){
   if(!file)return;
   if(_handledInputs.has(file))return;
@@ -1420,7 +1466,7 @@ function handlePhotoFile(file, target){
 
   if(target==='site'){
     if(!currentJob){toast('Open a job first');return;}
-    // Show immediately via blob URL
+    // Show immediately via blob URL (works for all formats incl HEIC)
     const blobUrl=URL.createObjectURL(file);
     const preview=document.getElementById('site-photo-preview');
     if(preview){
@@ -1428,27 +1474,23 @@ function handlePhotoFile(file, target){
       const cb=document.getElementById('clear-site-photo');
       if(cb)cb.style.display='inline-flex';
     }
-    // Read and store as data URL
-    const r=new FileReader();
-    r.onload=e=>{
+    photoToStorableDataUrl(file, dataUrl=>{
       URL.revokeObjectURL(blobUrl);
-      currentJob.sitePhoto=e.target.result;
+      if(!dataUrl){toast('Photo read failed');return;}
+      currentJob.sitePhoto=dataUrl;
       try{saveJobLocally(currentJob);toast('Site photo saved \u2713');}
       catch(err){toast('Storage full — delete old jobs');}
-    };
-    r.onerror=()=>{URL.revokeObjectURL(blobUrl);toast('Photo read failed');};
-    r.readAsDataURL(file);
+      renderSitePhoto();
+    });
 
   }else if(target==='modal'){
     const blobUrl=URL.createObjectURL(file);
     mPhotos.push(blobUrl);
     renderModalPhotos();
-    const r=new FileReader();
-    r.onload=e=>{
+    photoToStorableDataUrl(file, dataUrl=>{
       const idx=mPhotos.indexOf(blobUrl);
-      if(idx>=0){mPhotos[idx]=e.target.result;URL.revokeObjectURL(blobUrl);}
-    };
-    r.readAsDataURL(file);
+      if(idx>=0&&dataUrl){mPhotos[idx]=dataUrl;URL.revokeObjectURL(blobUrl);renderModalPhotos();}
+    });
 
   }else if(target.startsWith('sample:')){
     const sno=target.slice(7);
@@ -1459,16 +1501,14 @@ function handlePhotoFile(file, target){
     const slotIdx=currentJob.photos[sno].length;
     currentJob.photos[sno].push(blobUrl);
     renderPhotos();
-    const r=new FileReader();
-    r.onload=e=>{
+    photoToStorableDataUrl(file, dataUrl=>{
       URL.revokeObjectURL(blobUrl);
-      currentJob.photos[sno][slotIdx]=e.target.result;
+      if(!dataUrl){toast('Photo read failed');return;}
+      currentJob.photos[sno][slotIdx]=dataUrl;
       try{saveJobLocally(currentJob);toast('Photo saved \u2713');}
       catch(err){toast('Storage full — delete old jobs');}
       renderPhotos();
-    };
-    r.onerror=()=>{URL.revokeObjectURL(blobUrl);toast('Photo read failed');};
-    r.readAsDataURL(file);
+    });
   }
 }
 
@@ -1607,12 +1647,45 @@ function replacePlaceholderWithImage(xml,token,relId,picId,widthEmu,heightEmu){
 
 // Adds an image to the zip's media folder + relationships + content-types,
 // returns the relationship id to use in the drawing XML.
+// HEIC/HEIF photos: Samsung Chrome cannot decode these at all (no <img>,
+// no createImageBitmap), so we embed the original bytes directly — Word
+// itself CAN display HEIC. Requires registering the extension in
+// [Content_Types].xml (done by ensureHeicContentType).
 let _imgCounter=0;
+async function ensureHeicContentType(zip){
+  const ctFile=zip.file('[Content_Types].xml');
+  if(!ctFile)return;
+  let ct=await ctFile.async('string');
+  let changed=false;
+  if(ct.indexOf('Extension="heic"')===-1){
+    ct=ct.replace('</Types>','<Default ContentType="image/heic" Extension="heic"/></Types>');changed=true;
+  }
+  if(ct.indexOf('Extension="heif"')===-1){
+    ct=ct.replace('</Types>','<Default ContentType="image/heif" Extension="heif"/></Types>');changed=true;
+  }
+  if(changed)zip.file('[Content_Types].xml',ct);
+}
 async function addImageToZip(zip,relsXml,dataUrl,maxDim,quality,dpi){
   _imgCounter++;
-  const resized=await resizeImageDataUrl(dataUrl,maxDim,quality);
-  const bytes=dataUrlToUint8Array(resized.dataUrl);
-  const imgName='image_'+Date.now()+'_'+_imgCounter+'.jpg';
+  const isHeic=dataUrl.startsWith('data:image/heic')||dataUrl.startsWith('data:image/heif');
+  let bytes,ext,widthEmu,heightEmu;
+  if(isHeic){
+    // Embed original HEIC bytes untouched; Word decodes them natively.
+    await ensureHeicContentType(zip);
+    bytes=dataUrlToUint8Array(dataUrl);
+    ext=dataUrl.startsWith('data:image/heif')?'heif':'heic';
+    // Dimensions unknowable without decoding; assume 4:3 landscape.
+    // wp:extent controls the displayed size, so this only sets aspect ratio.
+    widthEmu=pxToEmu(1200,dpi);
+    heightEmu=pxToEmu(900,dpi);
+  }else{
+    const resized=await resizeImageDataUrl(dataUrl,maxDim,quality);
+    bytes=dataUrlToUint8Array(resized.dataUrl);
+    ext='jpg';
+    widthEmu=pxToEmu(resized.width,dpi);
+    heightEmu=pxToEmu(resized.height,dpi);
+  }
+  const imgName='image_'+Date.now()+'_'+_imgCounter+'.'+ext;
   zip.file('word/media/'+imgName,bytes);
 
   // Find next available rId
@@ -1621,9 +1694,6 @@ async function addImageToZip(zip,relsXml,dataUrl,maxDim,quality,dpi){
   const relId='rId'+nextId;
   const relEntry='<Relationship Id="'+relId+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'+imgName+'"/>';
   const newRels=relsXml.replace('</Relationships>',relEntry+'</Relationships>');
-
-  const widthEmu=pxToEmu(resized.width,dpi);
-  const heightEmu=pxToEmu(resized.height,dpi);
 
   return {relId,newRels,widthEmu,heightEmu,picId:1000+_imgCounter};
 }
