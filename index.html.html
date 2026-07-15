@@ -102,29 +102,9 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0}
 </style>
 </head>
 <body>
-<!-- Version + origin check: makes it obvious which version each device is running -->
-<div id="standalone-warning" style="display:none;background:#7A3200;color:#fff;padding:10px 14px;font-size:13px;line-height:1.5;position:sticky;top:0;z-index:9999;text-align:center"></div>
 <script>
 // APP VERSION - increment on every update
-const APP_VERSION='v2.6 (12 Jul)';
-(function(){
-  const w=document.getElementById('standalone-warning');
-  const isHttps=location.protocol==='https:';
-  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
-  if(!isHttps){
-    // Running from old downloaded file (content:// or file://) — everything is unreliable here
-    w.innerHTML='&#9888; <strong>OLD VERSION</strong> — you are running the outdated downloaded file.<br>'
-      +'Delete this shortcut. Open Chrome and go to:<br>'
-      +'<strong>gw03134-dot.github.io/sas-survey-app</strong><br>'
-      +'then Add to Home screen from there.';
-    w.style.display='block';
-  }else if(isStandalone){
-    // HTTPS + installed as PWA — gallery may be restricted on some Samsung builds
-    w.innerHTML='&#9888; If gallery photos fail: open in full Chrome (&#8942; &rarr; Open in Chrome)';
-    w.style.display='block';
-    w.style.background='#5a5200';
-  }
-})();
+const APP_VERSION='v2.7 (15 Jul)';
 </script>
 
 <div class="hdr">
@@ -460,16 +440,16 @@ const APP_VERSION='v2.6 (12 Jul)';
       </select>
     </div>
     <div class="fr"><label>Surveyor Comments</label><textarea id="m-comments" placeholder="N/A"></textarea></div>
-    <div class="sh">Photos for this sample</div>
+    <div class="sh">Photo for this sample (one per sample)</div>
     <div class="pg" id="modal-photo-grid"></div>
     <div style="display:flex;gap:8px;margin-top:8px">
       <label class="btn btn-p btn-sm" style="flex:1;cursor:pointer;position:relative;overflow:hidden">
         &#128247; Camera
-        <input type="file" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="handleModalPhotos(Array.from(this.files))">
+        <input type="file" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="if(this.files&&this.files[0])handlePhotoFile(this.files[0],'modal')">
       </label>
       <label class="btn btn-o btn-sm" style="flex:1;cursor:pointer;position:relative;overflow:hidden">
         &#128193; Gallery
-        <input type="file" id="gallery-modal" accept="image/*" multiple style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="if(this.files&&this.files.length)handlePhotoFiles(this.files,'modal')">
+        <input type="file" id="gallery-modal" accept="image/*" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="if(this.files&&this.files.length)handlePhotoFiles(this.files,'modal')">
       </label>
     </div>
     <div style="display:flex;gap:8px;margin-top:14px">
@@ -549,7 +529,143 @@ function deleteJobLocally(num){
   }catch(e){
     console.warn('Failed to update jobs index after deleting '+num,e);
   }
+  // Free the job's photos from IndexedDB (ids are prefixed with the job number)
+  try{idbDeleteByPrefix('ph_'+num+'_');}catch(e){}
 }
+// ── INDEXEDDB PHOTO STORE ───────────────────────────────────────────────────
+// Photos are stored as data-URL strings in IndexedDB ('SASPhotos' db) keyed by
+// a photo ID like  ph_J006004_site_1721...  Job records in localStorage hold
+// only these small ID strings, so localStorage never fills up — unlimited
+// samples & photos, fully offline. An in-memory cache (photoCache) holds
+// data URLs for instant rendering; hydrateJobPhotos() fills it from IDB.
+let _idb=null;
+const photoCache={};
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    if(_idb){res(_idb);return;}
+    const rq=indexedDB.open('SASPhotos',1);
+    rq.onupgradeneeded=()=>{rq.result.createObjectStore('photos');};
+    rq.onsuccess=()=>{_idb=rq.result;res(_idb);};
+    rq.onerror=()=>rej(rq.error);
+  });
+}
+function idbPut(id,dataUrl){
+  return idbOpen().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction('photos','readwrite');
+    tx.objectStore('photos').put(dataUrl,id);
+    tx.oncomplete=()=>res(id);
+    tx.onerror=()=>rej(tx.error);
+  }));
+}
+function idbGet(id){
+  return idbOpen().then(db=>new Promise((res,rej)=>{
+    const rq=db.transaction('photos','readonly').objectStore('photos').get(id);
+    rq.onsuccess=()=>res(rq.result||null);
+    rq.onerror=()=>rej(rq.error);
+  }));
+}
+function idbDel(id){
+  return idbOpen().then(db=>new Promise((res)=>{
+    const tx=db.transaction('photos','readwrite');
+    tx.objectStore('photos').delete(id);
+    tx.oncomplete=()=>res();
+    tx.onerror=()=>res();
+  })).catch(()=>{});
+}
+function idbDeleteByPrefix(prefix){
+  return idbOpen().then(db=>new Promise((res)=>{
+    const tx=db.transaction('photos','readwrite');
+    const st=tx.objectStore('photos');
+    const rq=st.openCursor();
+    rq.onsuccess=()=>{
+      const cur=rq.result;
+      if(cur){
+        if(String(cur.key).indexOf(prefix)===0)cur.delete();
+        cur.continue();
+      }
+    };
+    tx.oncomplete=()=>res();
+    tx.onerror=()=>res();
+  })).catch(()=>{});
+}
+function newPhotoId(jobNum,tag){
+  return 'ph_'+(jobNum||'nojob')+'_'+tag+'_'+Date.now()+'_'+Math.floor(Math.random()*10000);
+}
+// Resolve a photo ref (IDB id or legacy data URL) to a data URL. Sync from cache.
+function photoSrcSync(ref){
+  if(!ref)return '';
+  if(ref.startsWith('data:')||ref.startsWith('blob:'))return ref;
+  return photoCache[ref]||'';
+}
+// Async resolve — used by report generation.
+async function resolvePhotoRef(ref){
+  if(!ref)return null;
+  if(ref.startsWith('data:'))return ref;
+  if(photoCache[ref])return photoCache[ref];
+  try{
+    const v=await idbGet(ref);
+    if(v)photoCache[ref]=v;
+    return v;
+  }catch(e){return null;}
+}
+// Load all of a job's photos from IDB into the cache, then re-render.
+async function hydrateJobPhotos(job){
+  if(!job)return;
+  const refs=[];
+  if(job.sitePhoto&&!job.sitePhoto.startsWith('data:'))refs.push(job.sitePhoto);
+  const ph=job.photos||{};
+  Object.keys(ph).forEach(k=>(ph[k]||[]).forEach(r=>{
+    if(r&&!r.startsWith('data:')&&!r.startsWith('blob:'))refs.push(r);
+  }));
+  let loaded=false;
+  for(const r of refs){
+    if(photoCache[r])continue;
+    try{const v=await idbGet(r);if(v){photoCache[r]=v;loaded=true;}}catch(e){}
+  }
+  if(loaded){
+    try{renderSitePhoto();}catch(e){}
+    try{renderPhotos();}catch(e){}
+    try{renderSamples();}catch(e){}
+  }
+}
+// One-off migration: move legacy data-URL photos out of localStorage into IDB.
+// Frees localStorage so the 5MB limit stops being a problem for old jobs too.
+async function migrateJobPhotosToIdb(job){
+  if(!job)return false;
+  let changed=false;
+  try{
+    if(job.sitePhoto&&job.sitePhoto.startsWith('data:')){
+      const id=newPhotoId(job.number,'site');
+      await idbPut(id,job.sitePhoto);
+      photoCache[id]=job.sitePhoto;
+      job.sitePhoto=id;changed=true;
+    }
+    const ph=job.photos||{};
+    for(const k of Object.keys(ph)){
+      const arr=ph[k]||[];
+      for(let i=0;i<arr.length;i++){
+        if(arr[i]&&arr[i].startsWith('data:')){
+          const id=newPhotoId(job.number,'s'+k+'_'+i);
+          await idbPut(id,arr[i]);
+          photoCache[id]=arr[i];
+          arr[i]=id;changed=true;
+        }
+      }
+    }
+    if(changed)saveJobLocally(job);
+  }catch(e){console.warn('Photo migration failed for '+(job&&job.number),e);}
+  return changed;
+}
+async function migrateAllJobsToIdb(){
+  try{
+    const idx=getJobsIndex();
+    for(const num of idx){
+      const j=loadJobLocally(num);
+      if(j)await migrateJobPhotosToIdb(j);
+    }
+  }catch(e){console.warn('Bulk photo migration failed',e);}
+}
+
 function fmtDate(d){
   if(!d)return '';
   try{
@@ -687,7 +803,7 @@ async function openJob(num){
   if(!job){toast('Job not found');return;}
   if(!job.photos)job.photos={};
   if(!job.samples)job.samples=[];
-  currentJob=job;fillForm(currentJob);renderSamples();updateHeader();renderSitePhoto();
+  currentJob=job;fillForm(currentJob);renderSamples();updateHeader();renderSitePhoto();migrateJobPhotosToIdb(currentJob).then(()=>hydrateJobPhotos(currentJob));
   localStorage.setItem(LAST_JOB_KEY,num);
   goTab('job',document.querySelectorAll('.tab')[1]);toast('Loaded: '+num);
 }
@@ -701,7 +817,7 @@ function newJob(){
     SURVEYOR_NAME:'Gary Williams',LABORATORY_NAME:'Athena Environmental Solutions Ltd',
     ISSUE_NUMBER:'1',REVISION:'0'
   },samples:[],photos:{}};
-  saveJobLocally(currentJob);fillForm(currentJob);renderSamples();renderSitePhoto();
+  saveJobLocally(currentJob);fillForm(currentJob);renderSamples();renderSitePhoto();hydrateJobPhotos(currentJob);
   updateHeader();renderJobList();
   localStorage.setItem(LAST_JOB_KEY,num);
   goTab('job',document.querySelectorAll('.tab')[1]);
@@ -871,7 +987,10 @@ function delSample(){
   if(editIdx===null)return;
   if(!confirm('Delete this sample?'))return;
   const s=currentJob.samples[editIdx];
-  if(s&&currentJob.photos[s.SAMPLE_NO])delete currentJob.photos[s.SAMPLE_NO];
+  if(s&&currentJob.photos[s.SAMPLE_NO]){
+    (currentJob.photos[s.SAMPLE_NO]||[]).forEach(r=>{if(r&&!r.startsWith('data:')&&!r.startsWith('blob:'))idbDel(r);});
+    delete currentJob.photos[s.SAMPLE_NO];
+  }
   currentJob.samples.splice(editIdx,1);
   saveJobLocally(currentJob);closeModal();renderSamples();updateHeader();toast('Sample deleted');
 }
@@ -911,18 +1030,20 @@ function renderPhotos(){
   c.innerHTML=currentJob.samples.map((s,i)=>{
     const photos=(currentJob.photos[s.SAMPLE_NO]||[]).filter(p=>p);
     const sno=s.SAMPLE_NO;
-    const addBtns=''
+    const hasPhoto=photos.length>0;
+    // One photo per sample: show add buttons only when there's no photo yet
+    const addBtns=hasPhoto?'':''
       +'<label class="pa" style="cursor:pointer;position:relative;overflow:hidden;background:#f0ebff">'
         +'<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 15-5-5L5 19"/></svg>'
         +'<span style="font-size:10px">Camera</span>'
-        +'<input type="file" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="addPhotosTo(\''+sno+'\',Array.from(this.files))">'
+        +'<input type="file" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="if(this.files&&this.files[0])handlePhotoFile(this.files[0],\'sample:'+sno+'\')">'
       +'</label>'
       +'<label class="pa" style="cursor:pointer;position:relative;overflow:hidden">'
         +'<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 15-5-5L5 19"/></svg>'
         +'<span style="font-size:10px">Gallery</span>'
-        +'<input type="file" class="gallery-sample" data-sno="'+sno+'" accept="image/*" multiple style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="if(this.files&&this.files.length)handlePhotoFiles(this.files,\'sample:'+sno+'\')">'
+        +'<input type="file" class="gallery-sample" data-sno="'+sno+'" accept="image/*" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer" onchange="if(this.files&&this.files[0])handlePhotoFile(this.files[0],\'sample:'+sno+'\')">'
       +'</label>';
-    return '<div style="margin-bottom:14px"><div class="sh">'+s.SAMPLE_NO+' \u2014 '+(s.ITEM_DESCRIPTION||'(no description)')+'</div><div class="pg">'+photos.map((p,pi)=>'<div style="position:relative"><img src="'+displayUrl(p)+'" class="pt" onclick="viewPhoto(\''+s.SAMPLE_NO+'\','+pi+')"><button onclick="deletePhoto(\''+s.SAMPLE_NO+'\','+pi+')" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:14px;cursor:pointer;line-height:1">\u00d7</button></div>').join('')+addBtns+'</div></div>';
+    return '<div style="margin-bottom:14px"><div class="sh">'+s.SAMPLE_NO+' \u2014 '+(s.ITEM_DESCRIPTION||'(no description)')+'</div><div class="pg">'+photos.map((p,pi)=>'<div style="position:relative"><img src="'+displayUrl(photoSrcSync(p))+'" class="pt" onclick="viewPhoto(\''+s.SAMPLE_NO+'\','+pi+')"><button onclick="deletePhoto(\''+s.SAMPLE_NO+'\','+pi+')" style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:14px;cursor:pointer;line-height:1">\u00d7</button></div>').join('')+addBtns+'</div></div>';
   }).join('');
 }
 // Compresses a photo at the point of import (camera/gallery pick) so that
@@ -961,10 +1082,13 @@ function compressPhoto(dataUrl, maxDim, quality){
 
 function deletePhoto(sno,idx){
   if(!currentJob||!currentJob.photos[sno])return;
-  currentJob.photos[sno].splice(idx,1);saveJobLocally(currentJob);renderPhotos();
+  const removed=currentJob.photos[sno].splice(idx,1)[0];
+  if(removed&&!removed.startsWith('data:')&&!removed.startsWith('blob:'))idbDel(removed);
+  saveJobLocally(currentJob);renderPhotos();
 }
 function viewPhoto(sno,idx){
-  const src=(currentJob.photos[sno]||[])[idx];if(!src)return;
+  const ref=(currentJob.photos[sno]||[])[idx];
+  const src=photoSrcSync(ref);if(!src)return;
   const m=document.createElement('div');
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;display:flex;align-items:center;justify-content:center;cursor:pointer';
   m.onclick=()=>m.remove();
@@ -973,7 +1097,7 @@ function viewPhoto(sno,idx){
 }
 function renderModalPhotos(){
   const g=document.getElementById('modal-photo-grid');
-  g.innerHTML=mPhotos.map((p,i)=>'<div style="position:relative"><img src="'+p+'" class="pt"><button onclick="mPhotos.splice('+i+',1);renderModalPhotos()" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1">\u00d7</button></div>').join('');
+  g.innerHTML=mPhotos.map((p,i)=>'<div style="position:relative"><img src="'+displayUrl(photoSrcSync(p))+'" class="pt"><button onclick="mPhotos.splice('+i+',1);renderModalPhotos()" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1">\u00d7</button></div>').join('');
 }
 function renderSaveTab(){
   renderSummary();
@@ -998,15 +1122,23 @@ function renderStorageManager(){
   const bar=document.getElementById('storage-usage-bar');
   const list=document.getElementById('storage-job-list');
   if(!bar||!list)return;
-  const usedBytes=getStorageBytesUsed();
-  const usedMB=(usedBytes/1024/1024).toFixed(2);
-  // Most mobile browsers allow ~5-10MB per origin; assume 5MB as the conservative limit
-  const estLimitMB=5;
-  const pct=Math.min(100,Math.round(usedBytes/1024/1024/estLimitMB*100));
-  const barColor=pct>85?'#C00000':pct>60?'#FF8C00':'#2E7D32';
-  bar.innerHTML='<div style="font-size:11px;color:#666;margin-bottom:4px">Storage used: <strong>'+usedMB+' MB</strong> of ~'+estLimitMB+' MB</div>'
-    +'<div style="background:#eee;border-radius:6px;height:10px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+barColor+'"></div></div>'
-    +(pct>75?'<div style="font-size:11px;color:#C00000;margin-top:4px;font-weight:700">&#9888; Storage nearly full \u2014 delete old jobs below to free space, especially ones with photos</div>':'');
+  // Photos now live in IndexedDB (device quota, typically hundreds of MB+),
+  // so show the real device storage estimate instead of the old 5MB limit.
+  bar.innerHTML='<div style="font-size:11px;color:#666;margin-bottom:4px">Calculating storage&hellip;</div>';
+  const drawBar=(usedMB,limitMB)=>{
+    const pct=limitMB?Math.min(100,Math.round(usedMB/limitMB*100)):0;
+    const barColor=pct>85?'#C00000':pct>60?'#FF8C00':'#2E7D32';
+    bar.innerHTML='<div style="font-size:11px;color:#666;margin-bottom:4px">Storage used: <strong>'+usedMB.toFixed(1)+' MB</strong>'+(limitMB?' of ~'+Math.round(limitMB)+' MB available':'')+'</div>'
+      +'<div style="background:#eee;border-radius:6px;height:10px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+barColor+'"></div></div>'
+      +(pct>85?'<div style="font-size:11px;color:#C00000;margin-top:4px;font-weight:700">&#9888; Device storage nearly full \u2014 delete old jobs below to free space</div>':'');
+  };
+  if(navigator.storage&&navigator.storage.estimate){
+    navigator.storage.estimate().then(est=>{
+      drawBar((est.usage||0)/1024/1024,(est.quota||0)/1024/1024);
+    }).catch(()=>drawBar(getStorageBytesUsed()/1024/1024,0));
+  }else{
+    drawBar(getStorageBytesUsed()/1024/1024,0);
+  }
 
   const idx=getJobsIndex();
   if(!idx.length){list.innerHTML='<p style="font-size:12px;color:#999;margin-top:8px">No saved jobs</p>';return;}
@@ -1033,6 +1165,7 @@ function emergencyWipeAllJobs(){
   }
   _wipeConfirmPending=false;
   try{localStorage.clear();}catch(e){}
+  try{idbDeleteByPrefix('ph_');}catch(e){}
   currentJob=null;
   updateHeader();
   renderJobList();
@@ -1123,14 +1256,16 @@ function toast(msg){
 }
 function clearSitePhoto(){
   if(!currentJob)return;if(!confirm('Remove site photo?'))return;
+  const old=currentJob.sitePhoto;
+  if(old&&!old.startsWith('data:'))idbDel(old);
   delete currentJob.sitePhoto;saveJobLocally(currentJob);renderSitePhoto();
 }
 function renderSitePhoto(){
   const preview=document.getElementById('site-photo-preview');
   const clearBtn=document.getElementById('clear-site-photo');
   if(!preview)return;
-  if(currentJob&&currentJob.sitePhoto){
-    const src=currentJob.sitePhoto;
+  if(currentJob&&currentJob.sitePhoto&&photoSrcSync(currentJob.sitePhoto)){
+    const src=photoSrcSync(currentJob.sitePhoto);
     // HEIF data URLs can't display in <img> — convert to blob URL
     if(src.startsWith('data:image/heif')||src.startsWith('data:image/heic')){
       // Decode base64 to blob, then use object URL
@@ -1156,6 +1291,7 @@ function applyDeviceUI(){
   if(mb)mb.style.display='block';
 }
 applyDeviceUI();renderJobList();updateHeader();
+setTimeout(()=>{migrateAllJobsToIdb().then(()=>{if(currentJob)hydrateJobPhotos(currentJob);});},400);
 try{document.getElementById('app-version').textContent=(typeof APP_VERSION!=='undefined'?APP_VERSION:'')+' · '+(location.protocol==='https:'?'web':'local file');}catch(e){}
 // If the page was reloaded (e.g. Android suspended it while the camera was
 // open), silently restore whichever job was last open so in-progress work
@@ -1167,7 +1303,7 @@ try{document.getElementById('app-version').textContent=(typeof APP_VERSION!=='un
     if(job){
       if(!job.photos)job.photos={};
       if(!job.samples)job.samples=[];
-      currentJob=job;fillForm(currentJob);renderSamples();updateHeader();renderSitePhoto();
+      currentJob=job;fillForm(currentJob);renderSamples();updateHeader();renderSitePhoto();migrateJobPhotosToIdb(currentJob).then(()=>hydrateJobPhotos(currentJob));
     }
   }
 })();
@@ -1507,37 +1643,54 @@ function handlePhotoFile(file, target){
     photoToStorableDataUrl(file, dataUrl=>{
       URL.revokeObjectURL(blobUrl);
       if(!dataUrl){toast('Photo read failed');return;}
-      currentJob.sitePhoto=dataUrl;
-      try{saveJobLocally(currentJob);toast('Site photo saved \u2713');}
-      catch(err){toast('Storage full — delete old jobs');}
-      renderSitePhoto();
+      const oldRef=currentJob.sitePhoto;
+      const id=newPhotoId(currentJob.number,'site');
+      photoCache[id]=dataUrl;
+      idbPut(id,dataUrl).then(()=>{
+        currentJob.sitePhoto=id;
+        if(oldRef&&!oldRef.startsWith('data:'))idbDel(oldRef);
+        try{saveJobLocally(currentJob);toast('Site photo saved \u2713');}
+        catch(err){toast('Save failed');}
+        renderSitePhoto();
+      }).catch(()=>toast('Photo save failed'));
     });
 
   }else if(target==='modal'){
+    // One photo per sample — a new pick replaces the existing one
     const blobUrl=URL.createObjectURL(file);
-    mPhotos.push(blobUrl);
+    mPhotos=[blobUrl];
     renderModalPhotos();
     photoToStorableDataUrl(file, dataUrl=>{
-      const idx=mPhotos.indexOf(blobUrl);
-      if(idx>=0&&dataUrl){mPhotos[idx]=dataUrl;URL.revokeObjectURL(blobUrl);renderModalPhotos();}
+      if(!dataUrl){URL.revokeObjectURL(blobUrl);return;}
+      const jobNum=currentJob?currentJob.number:'nojob';
+      const id=newPhotoId(jobNum,'m');
+      photoCache[id]=dataUrl;
+      idbPut(id,dataUrl).then(()=>{
+        if(mPhotos[0]===blobUrl){mPhotos=[id];URL.revokeObjectURL(blobUrl);renderModalPhotos();}
+      }).catch(()=>{});
     });
 
   }else if(target.startsWith('sample:')){
     const sno=target.slice(7);
     if(!currentJob){toast('Open a job first');return;}
     if(!currentJob.photos)currentJob.photos={};
-    if(!currentJob.photos[sno])currentJob.photos[sno]=[];
+    // One photo per sample — replace any existing photo
+    const oldRefs=(currentJob.photos[sno]||[]).slice();
     const blobUrl=URL.createObjectURL(file);
-    const slotIdx=currentJob.photos[sno].length;
-    currentJob.photos[sno].push(blobUrl);
+    currentJob.photos[sno]=[blobUrl];
     renderPhotos();
     photoToStorableDataUrl(file, dataUrl=>{
       URL.revokeObjectURL(blobUrl);
-      if(!dataUrl){toast('Photo read failed');return;}
-      currentJob.photos[sno][slotIdx]=dataUrl;
-      try{saveJobLocally(currentJob);toast('Photo saved \u2713');}
-      catch(err){toast('Storage full — delete old jobs');}
-      renderPhotos();
+      if(!dataUrl){toast('Photo read failed');currentJob.photos[sno]=oldRefs;renderPhotos();return;}
+      const id=newPhotoId(currentJob.number,'s'+sno);
+      photoCache[id]=dataUrl;
+      idbPut(id,dataUrl).then(()=>{
+        currentJob.photos[sno]=[id];
+        oldRefs.forEach(r=>{if(r&&!r.startsWith('data:')&&!r.startsWith('blob:'))idbDel(r);});
+        try{saveJobLocally(currentJob);toast('Photo saved \u2713');}
+        catch(err){toast('Save failed');}
+        renderPhotos();
+      }).catch(()=>toast('Photo save failed'));
     });
   }
 }
@@ -1760,7 +1913,8 @@ async function embedReportImages(zip,documentXml,job,samples){
     const n=i+1;
     const sample=samples[i];
     const photos=(job._photos&&job._photos[sample.SAMPLE_NO])||[];
-    const slots=['SDS_'+n+'_PHOTO_1','SDS_'+n+'_PHOTO_2'];
+    // One photo per sample — PHOTO_2 tokens are blanked below
+    const slots=['SDS_'+n+'_PHOTO_1'];
     for(let s=0;s<slots.length;s++){
       if(!photos[s])continue;
       // Skip blob:// URLs — they are session-only and won't decode after page reload
@@ -1946,7 +2100,19 @@ async function generateReport(){
     window._lastPhotoError=null;
     setReportStatus('&#9203; Adding photos&hellip;',true);
     docXml=await zip.file('word/document.xml').async('string');
-    docXml=await embedReportImages(zip,docXml,{sitePhoto:currentJob.sitePhoto,_photos:currentJob.photos},samples);
+    // Resolve IndexedDB photo refs to actual data URLs for embedding
+    const resolvedSite=await resolvePhotoRef(currentJob.sitePhoto);
+    const resolvedPhotos={};
+    for(const k of Object.keys(currentJob.photos||{})){
+      const arr=currentJob.photos[k]||[];
+      const out=[];
+      for(const ref of arr){
+        const v=await resolvePhotoRef(ref);
+        if(v)out.push(v);
+      }
+      resolvedPhotos[k]=out;
+    }
+    docXml=await embedReportImages(zip,docXml,{sitePhoto:resolvedSite,_photos:resolvedPhotos},samples);
     zip.file('word/document.xml',docXml);
 
     setReportStatus('&#9203; Filling template fields&hellip;',true);
