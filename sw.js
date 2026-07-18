@@ -2,7 +2,7 @@
    IMPORTANT: bump CACHE (the version) on EVERY release so clients pick up the new build.
    Strategy: network-first for the app page (fresh when online, cached when offline);
    cache-first for static assets. App is a single self-contained index.html. */
-const CACHE = 'sas-survey-v2.7.4';
+const CACHE = 'sas-survey-v2.7.5';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.png'];
 
 self.addEventListener('install', (event) => {
