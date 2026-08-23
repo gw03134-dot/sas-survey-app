@@ -12,8 +12,8 @@
 <title>SAS Survey App</title>
 <meta name="app-version" content="2.15.0">
 <link rel="manifest" href="manifest.json">
-<!-- SAS Survey App v2.16.1 (2026-08-23): Reinspection button renamed + Re-inspection removed from Details type picker (shows only when the loaded job is one); Reinspection chooser gains 'From a saved report (OneDrive folder)' — picks a .docx from the reports folder (file picker opens there via the saved folder handle; plain file input on tablet), parses Contract Review + Survey Data Sheets, carries positives/presumed/no-access into a new re-inspection job (photos not carried from files). Previous: v2.16.0: NEW SURVEY TYPE 'Sampling' — letter-style Sampling Exercise report (SAMPLING_TEMPLATE_B64, built from MGMT house style): page-1 letter (site photo, client address block, HSG 248 wording, auto list of identified ACMs from sample results), Appendix 1 Survey Data Sheets (landscape), Appendix 2 Analysis Certificates + Appendix 3 Plans (PDF attach anchors preserved). Tokens SAMPLING_ITEMS/SAMPLING_ACM_LIST/CLIENT_ADDRESS_LINES/SITE_ADDRESS_1L computed in generateReport. Invoicing Type = 'Sampling Exercise (MA only)'. Previous: v2.15.3: Product Type is now free-text with suggestions (added Composite, Cement Sheet renamed Cement, auto-score case-insensitive incl. legacy names); Quantity gains Throughout/Typical/Unknown suggestions; NADIS result forces material score 0 (green 'No Asbestos Detected', excluded from summary bands); postcode added under the site address in 2.0 Contract Review (MGMT/REFURB/DEMO templates). Previous: v2.15.2 (2026-08-12): Surface Treatment options replaced with HSG264 material groups, score embedded in the wording — reinforced plastics/resins/vinyl/well bound/bitumen (0); enclosed sprays+lagging/sealed AIB/cement/textured coating/gasket (1); unsealed AIB/encapsulated lagging+sprays/ropes/textiles/paper (2); unsealed lagging+sprays (3). Auto-score reads the (n) suffix; pre-v2.15.2 wording still scores via legacy map and stays selectable when editing old samples. Previous: v2.15.1 (2026-08-10): Invoicing spreadsheet — pick 'Invoicing Not Yet Invoiced.xlsx' once on the laptop (Save tab); every J1000+ job auto-adds a row at the top (Job No./Client/Site/Postcode/Type/Survey Date), existing rows and hand-typed invoice dates untouched. Previous: v2.15.0 (2026-08-02): Microsoft 365 connection. Sign in once (OAuth2 auth-code + PKCE, no libraries) and "New Job from Calendar" reads the info@shropshireasbestos.com calendar live via Microsoft Graph (calendarView, next 120 days, Europe/London) straight into the appointment chooser. Silent token refresh; falls back to own calendar if shared access is denied; clear re-sign-in and file fallbacks; calendar-link and file routes retained. Entra app 12640c92-a3c7-42f4-8c09-8c6115771513 (SPA redirect = live app URL). -->
-<script>window.APP_VERSION='2.16.1';</script>
+<!-- SAS Survey App v2.16.2 (2026-08-24): Reinspection source picker now accepts PDF (and .doc with save-as guidance) as well as .docx — old reports in OneDrive are mostly PDFs and were greyed out. PDF parsing via embedded pdf.js text positions (_parsePdfReport): rebuilds CR fields + datasheet tables per page; content sniffed by magic bytes; picker retries without startIn if the saved folder handle is stale. Previous: v2.16.1: Reinspection button renamed + Re-inspection removed from Details type picker (shows only when the loaded job is one); Reinspection chooser gains 'From a saved report (OneDrive folder)' — picks a .docx from the reports folder (file picker opens there via the saved folder handle; plain file input on tablet), parses Contract Review + Survey Data Sheets, carries positives/presumed/no-access into a new re-inspection job (photos not carried from files). Previous: v2.16.0: NEW SURVEY TYPE 'Sampling' — letter-style Sampling Exercise report (SAMPLING_TEMPLATE_B64, built from MGMT house style): page-1 letter (site photo, client address block, HSG 248 wording, auto list of identified ACMs from sample results), Appendix 1 Survey Data Sheets (landscape), Appendix 2 Analysis Certificates + Appendix 3 Plans (PDF attach anchors preserved). Tokens SAMPLING_ITEMS/SAMPLING_ACM_LIST/CLIENT_ADDRESS_LINES/SITE_ADDRESS_1L computed in generateReport. Invoicing Type = 'Sampling Exercise (MA only)'. Previous: v2.15.3: Product Type is now free-text with suggestions (added Composite, Cement Sheet renamed Cement, auto-score case-insensitive incl. legacy names); Quantity gains Throughout/Typical/Unknown suggestions; NADIS result forces material score 0 (green 'No Asbestos Detected', excluded from summary bands); postcode added under the site address in 2.0 Contract Review (MGMT/REFURB/DEMO templates). Previous: v2.15.2 (2026-08-12): Surface Treatment options replaced with HSG264 material groups, score embedded in the wording — reinforced plastics/resins/vinyl/well bound/bitumen (0); enclosed sprays+lagging/sealed AIB/cement/textured coating/gasket (1); unsealed AIB/encapsulated lagging+sprays/ropes/textiles/paper (2); unsealed lagging+sprays (3). Auto-score reads the (n) suffix; pre-v2.15.2 wording still scores via legacy map and stays selectable when editing old samples. Previous: v2.15.1 (2026-08-10): Invoicing spreadsheet — pick 'Invoicing Not Yet Invoiced.xlsx' once on the laptop (Save tab); every J1000+ job auto-adds a row at the top (Job No./Client/Site/Postcode/Type/Survey Date), existing rows and hand-typed invoice dates untouched. Previous: v2.15.0 (2026-08-02): Microsoft 365 connection. Sign in once (OAuth2 auth-code + PKCE, no libraries) and "New Job from Calendar" reads the info@shropshireasbestos.com calendar live via Microsoft Graph (calendarView, next 120 days, Europe/London) straight into the appointment chooser. Silent token refresh; falls back to own calendar if shared access is denied; clear re-sign-in and file fallbacks; calendar-link and file routes retained. Entra app 12640c92-a3c7-42f4-8c09-8c6115771513 (SPA redirect = live app URL). -->
+<script>window.APP_VERSION='2.16.2';</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:Arial,sans-serif;font-size:14px;background:#f0eef5;color:#222;overscroll-behavior:none;-webkit-overflow-scrolling:touch}
@@ -106,7 +106,7 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0}
 
 <div class="hdr">
   <div class="hdr-top">
-    <div><img src="data:image/png;base64,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" style="height:32px;width:auto;display:block" alt="Shropshire Asbestos Services"><div style="font-size:11px;font-weight:700;opacity:.9;color:#fff;line-height:1;margin-top:3px;letter-spacing:.3px">v2.16.1</div></div>
+    <div><img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCABIAQsDASIAAhEBAxEB/8QAHAAAAwADAQEBAAAAAAAAAAAAAAYHBAUIAwIB/8QARhAAAQMEAAQDBgQCBQgLAAAAAQIDBAAFBhEHEiExE0FRCBQiMmGBQnGRoRXRFlKDscEXIyQzgoSU0jdTVWJyc5KisuHw/8QAGwEAAgMBAQEAAAAAAAAAAAAAAAMBBAUCBgf/xAAzEQABAwIEBAQEBQUAAAAAAAABAAIDBBEFEiExE0FRcRQiYdEGgZHwFTJCUrEWI6HB4f/aAAwDAQACEQMRAD8A5looorVVdFFfbLbjzqGmkKW4shKUpGySfIVYMN4PIcjNy8lkuoWoAiKwQOX6KV6/QfrS5JWxi7lSrsRp6FmaY2vsOZUcorpFPCzCAADaXD9TKd/5q/f8luEf9kL/AOKd/wCakeNj6FYv9WUX7XfQe65torom68O+H9st0ifLtim2GEFa1GU72H+1XP1wcjuznnYkf3eOpZLTXMVcifIbPU02KYS7BamHYrFiGYxNIA5m3uVj0U+8McNj3tp65XVtZhoPI0gKKfEV5nY66H08/wAqwOJGLt2Cc29CSv3F/wCUKO+RXmnddcVubLzTW4jA6oNOD5v8du6UaKybYuKic0qa14sfm04nmI6evSnx3GrEW0uNRSUqGwQ6o7H61Lnhu6ZUVbICA4HVTqinWRYrWjfLHI/tFfzrWybZCRvlaI/2j/OoEgKhlbG/YFLlFbGRGZRvlRr7msBwAKIFdg3Vlrw7ZfNFesVAdktNq5tLWEnlGzonyHrVEz3GbDDxx2ZZLedRnEJXITLUpY2OzrawOQ79KldKbUU34Lj8C92K/OSVsMSIzbRYffdUhtolR2Trp5eYNeXEWyQbG9amYXhqL0BDrzjbhWhxZJBUCfI68qEJVoqtWHDsclYVAuEu3hKnYLz8mYJikrbKCQkhvqFD7dKn2GWlm95VAtT7xaZkO8q1DoeUAnQ+p1r71CFpqKfsls1hkYtcrra7TItLtsmiMUuvqcEgE638XZQ76FePDGx267Qb0/Ntabi7EQ0phpUosAlSiDtQIA6evpQi6R6K3+fQLTbcplRLK8HYaOXl0vnCVEDaQrz0abp2LY//AEKXIgW9b05mAJLzplKQ+2ruSWlAJKPqOtShTKimrhnZoF8vMqJcEJU2mE64gqcKAhYHRRI8hWRmeOQLLiNklMOxpMuS48HpEd5S23Akjl1vp03roKhCTaKZnbVBTw0ZvIZPvyrmqOXOc/IG961vXfz1THwtxe0XvH35U21JnSBPSwOaWpnlbKQSRo6JHU686lCm1Fba/wAKDEyuXAguKdhtyi22pR6lO9a3+26ceKNix+yQ1NWy3wmng42OdNwcW8AU7O21dAPrv0oQpxRRRQhFFFFCFSvZ/szNwyiRcn0Babe0FIB8nFkgH7AKq+1DfZyuLTF8udtWoJXKZQtvfmWydj9Fk/arlWTVk8Q3XzX4mc817g7YAW7W97ooorSZvf2Max2Tc3dFaRysoP43D2H/AO8hVcAk2Cw4onSvDGC5OimXH/Ked1vF4bnwo07MIPc90o+3c/aphjtqkXu8xrbFHxvL0Va6JT5qP5CsadKfmzHpklwuPvLLjiz3Kidk1ZuC+M/w60KvctvUmYnTQI6pa/8Avv8AlqtU2gjsvpDzHguHhrfzfy48/vkm2BAj2y2MW+KjlZYQEJH+J+p71p8qtbN4tD8F7Q5xtCtfKodjTE/Wuk1RaTe68dDK8PEl9d1zlMjvRJbsV9BQ60soWD5EU34XdPHhm3vK24yNt780+n2rP4r2QEpvUdHXoiQB+iVf4fpSFBkuQ5bclo6Ug7/P6VpAiRl171jm19MHDf8AgqgS/OtPN862aZDcuKiQ0dpWNj6fStZN86W1U4AQbFaeZ51q3fnNbSZ51q3fnNOateHZfiFKQoKSSFA7BHka3N3yq/3aAIM+5OvRwQSkgDmI7FRHf71qIzLkiS3HaSVOOLCEgeZJ1XTdpseOW2PbrFIt0ByUqKTtcdJK+TlCiSRvuqlzTCO2l1QxTFWYeG3bmJvoOg3K5sh3ObDgy4Ud4oYmJSl9Gh8YB2KLlcptxTHEx4uiMyGWtgDlQOwpnt+LR08Vf6M3BRRGTLUnqdFaNcyRv6jX61W767bsemR7anCUyLQtH+dksRkrCPzSASfvUPnDSABe6XV4yyF7GRtzFwzbgafPc+ihUXJ75GaitMzlJbisrZaTyjQQvqpJ6dQdedaph96PIRIYcU062oLQtB0UkdiKsWCRcTn8UJpssZt63rgFZYfY+FpznSCAFfr9zTXA/hdxyS4WOVhMdmJHSdTFxU+G5ojseUevkfKuXVOU7JFRj4hcW8I6AE3IBF/QqDX3Jr5fGG2LncHH2kHmCNADm9SB3P1rDh3ObDgzIUd4oYmJSl9Gh8YSdj96tHDGz4+cvyuLEixZkFh1oMeIgOBPzcwBO+gOx9q8rnkzUVUlKuGSvCaKwXfdUhPKN/F8nbzqfEa2AXbsbJlMUcRNgDuBuL81EK3jmWZC5aDaV3N0xC34ZR02Uf1d99fSqjwex60t4SvIDbGrpcVFwpbWAop5ToITvoCe+/rWFm9zxi6YzIReseesV5CVe7/6KQSsdhzgAEHt1qePd2UBd/jQdUmFkZIBsTpv23t6qWWm5zrU849BfLK3WlNLIAO0q7jrRJuc6RbIttefKosUqUy3ofCVHZqv8N8psF9uMKwHFYSHBH0p9TaFcxQnqfl89VjcS8oslvlXTGGcWh+OpktIkobQkpUtHQgcu+m6OM7NlyqBi0xqPD8A333G17XUoVc5qrQm0l8+5JeL4a0Nc+tb9e1e1uvt1t8MRIctbLIkJkhKQOjieyt/arM9Dxnhli0SRNtbdwuL5CVKUhKlKXratE/KkfT6V4Xe1Y5n+Cyb9aLc3BuEdK1DkQEkqSNlCtdFbHY/UVAqRvbTquG48wkP4Z4ZNs3r26KLzp0mbcXJ8hYVIdX4i1hIG1euhW0vWWX68wjDuM3x2SQogtpB2O3UDdVXhZYLXD4fpyFq0NXe5upWsIUEqO0qICE76Dtv161qOIFyxe54w4bjYnrHfgCWUmKU7UD2KgAFAj9KkT3dlATG40H1BhZGSAcpOm/be3qpJRRRVhbaKKKKELMss6VbLoxPhOlqQwsLQoeR/lXQuH8RbNeIraJ7qLfN1paHDpCj6pV2+xrnFn5xW8t/lVeeJsm6xsXwyGtaC/QjYhdOpuVuUNpnRlA+YdH86gXGrKRfch9wiOc0GCShJB6Lc/Er/CtXdZ3uUAhB0658KPp6mlUAk6GyTS4KcMOZUcGwNlLLxyb2290zcNMdGR5OzGfITDZ/zslROvhB+X8yen6+ldLIEFLaW0FlKEgJSkEaAHlUdwi0i1WlKVpAkPfG6fQ+Q+386a43ek1B4jt9FlY441k9w7yt0H+ynctQVdw0fvXyYVvV3aaNLbHetjH8qrFtua886Et2csyZZLRMiuRn4bS23ElKh9DXMua2F/G8ik2t3ZQhXMys/jQexrqCP5UkcbcX/jWP/wATit7mwElWgOq2/wAQ+3f9adTS5H2OxWvgGJGlqeHIfK7TseRU+4LTbS5eV2O8xmnW5XWMtf4XB+H7j9wPWrK7hmMOJIXaWevoSD/fXLjDrjD6HmVqQ42oKSoHRBHY10/w5yRvJ8ZYm7HvKB4clI8ljz+/em1bHNOcFaPxNTTQPFTE4gHQ2J0P/fvdJ2ccLGFxHJeOLWl5AJMVxXMFj0So9Qfz39qiMlC231tuJKVpJCkkaII8q7DrnnjvaWbdmfvDCQlE1oPKAHTm2Qf7t1NLMXHK5dfDeLSzSGnmN9Lg8+yxOC1n/i2dRlrTzMwgZK/zHy/+4iqlfskwePnDD9wuEhF1gbYSEpWW083cHQ151CcfevYnoiWFyd73JUG0tRCrndPkAE9TTpdeDPFlmA5ep2HXVxCh4jitpcdO/MoCivf2p0kQc+7jZbFZg5rKkyyPIbawA39b902cTscgSeINkuE2W9BjTUlhchlQSpDqBts7IOt7A+1MkCDm9vyFllFzi3KxdOZyXrx0p116pA2fQ1E8ctOcZ/OVZLQi43qQwgvmOp/fIlJCSr4yB05gPvTqzwp4+MxxHasd+Q0BoJTOQAB6fPS3QmwaXBU34FUPhZGXg5QRqL/McweSbYSLajjPI9xDQeNp3KDetc/iDW/rrX7VnQIeZHMZblwmRHMdXzhthQBXojp2T/eajWG4XxEvF+usPGLbcHrnbllqeGH0oW2rmIIUSob+JJ7E9q3mQ4BxutVsdl3Wz5KIiEkuqQ+XQlOupIQokDXn2qHU+tsw2S5PhyUnyvBGUNuRc6cx09E94HHtUXPMqZtCW0x0+78yW/kS5pXMB9/33WFfInFKTHnR/HsnubqHEa683hkEenfVS7hxjmd5JImM4PHnSXmkpXJTFkJbPKSQCdqG+u/1rHu87NrXen7Hcbhd2Lgy74DsZUhRUF9uXoetT4c5rgg9127AZhNxGua7Ro8wudABdPvC6yyncLVccWyGRHupJD0R1SFMc4V5pKSRtOutN18TMXw1uX9N028SEsOaLPbm18BG/wAXNrtUmyDAuI+AtR7hdbTPsqZTwjsuCQgFxZBIT8Kt+X5V5cRcY4iY/HhvZtEuUdmSpQjGU+FhRAG9AKOu4/WpdDmde/um1GByzVHELxa9728w9L9O6yOBX/SJF/8AJd/+JrH4xLU3xKuDifmSptQ/MITXzw7wbiBkzqpmGWW5SPC2kymD4SEnzT4hIG+vbe6xc/xLNcZuAOZWm4xJD3RL0kFSXdAdlgkK0Ndj0p2UcXNfktPwTvGmpvply2+d1Wc0tKOJeIW6fY5bCX21c4S4ogDY0pCtb0Qf7q+IERvhtwynNXKWy5Nf8RSUIPRTqk8qUp31I6Ak69aRMD4d8VLvZ0XzELNc3IMgqSl+NIQ2FlJIPQqB6EHyozfhnxUtVpfyDLLFcm4UUJ8WTIkIWEBSgkfiJ7kDp60kQ/ozaLLbgUwaIDJ/ZBva2vW10z8O7LO/oOi5YdkMhue5/rokhSFMBwHSgU8pKSRrR/KmLM0vL4WTjmKYAnhhZR4Py+L18Pl3571vX18qkPDrFs+yKU6MJtt1kLR0dciqLaE+gUskJH5E17cSMU4i44pk5vbrswhR007JWXGifQLBKd9O290Ohu/f3Uy4HLJUCUvFs2a9vN2v0SZRRRVxejRRRRQhfbPzit3AIABPYVpGiAvZOq2bbzQjOJ8VAUUEDr9K4cq84JCwrjJVKlKcJ+EdEj0Fb3ArV75cffHk7ZjnY35r8v070s1QcPutpj2dlpcplhxO+dK1cpJ9frXMhIbYJFc50cGWMb6J0YrYxu9LjN9so73SGP7UVnx8isI73eEP7YVSLT0XkJYJT+k/RMrHetjH8qWGcmx4HreoA/t01nMZXjQ1u+24f7wn+dKLHdFnS0037D9CmuP5VkOAFOiNiltjL8WGt5BbR/vCf517rzLFCOmRWz/iU/zpWR19lQdST3/IfoVCuLGMHHMlWY6NQJe3Y+h0T/WR9j+xFe3B7JV2DKmmXVn3KcoMvDySSfhV9if0Jpx40ZFjVyxhMSJPjTpheSpnwVhXh6+Ykjt02PvUbZJDqCFcpCgQfStSO8kVnL6FQB9fh/DqWkHbXn0P3zXYlc+cfLmzOzJEVlQUITAbWR/WJJI/cU3Zpxat0WCqHjqjMmKTy+8FBDbf1G+qj+351EZDzsh9x99xTjriipalHZUT3JpFLA5pzOWR8OYRNDJ4iYW0sAd+6tHsZ3zG7DxcU/kciNF8eC4zCff0EtvFSfxHoklIUN/XXnXUV/Y4xwcqnZBi98sWTWF1smPZpASwps9NcrqUnmPfqpWjuuQvZvyjCcbzJ9GfWmJOtE1jwvGfih73ZwEEL1onWtg6G+o9K6PwqfwMwHIbhldo4nf6PJbWf4WJ3iMN8xB+BlKebY7Addbpso817L27dkk+zDNmXH2o8tnXGyIsc16E+qTATvTLviNc/f1Vs/eqpmuOcf5eVXCRjHEPH7fZnHSYkZ+MhTjSNdiSwrZ+5qRcJeKOKT/ahyrN7lPj2W0z4KmYy5agjm5fBQnf/eUEFWqZsys3A/J8nn3+TxomxHprpdWzGuqEtIPokcvQVy4HNqOXS6BstZ7C0qZOzTO5twdD0yQW3ZDgSAFuKccKjoAAbJPYVX+FI4vIzTI1Z47FVjfOs2vmDIcA5zy68MD4eTvz9e31qEeyZk+FYRnOcM3HJocS2qdDNvkSngPeG0OuBKgex2nR6etNPCfjVj95lZriHEDJGv4ZIkSPcJsh/lS5GWSkthfloEFP0J9KJGkuNghp0SDwuyu0Yz7X1zVZnWkWK6XORBHha8Mha/h5ddOXxANa8qf+IvDU3D2xccnJjk2+c2m5yDy7TzR+4P5qS3v/AMdcqZFFZxzMpUe0XVi4sQZe4k2OsKQ6kHaFgjz1rY8jsV3hjHGXhdcLJaL/AHbKLPFu6YHK4249p1krCS4jX1UgdPoK7kBaQW9FDddCoZ7auVC58WrDi7Dm2bOltx4D/rnVJOj+SAj/ANRpp9u2OZdrwSIlQSXpLzYJ8uYNDf71zJlOSOZPxKm5RMUUe/XIyTzH/VoK9pT+SU6H2q7e2fm2LZPZcTRjOQwbm9EdeU8IrwUWtpb0Trt1B/SpyZS0Ive6pHtGZlO4J8N8cx/A2mIC3SY7TymUr8NttIKjojRWokEkg9ye9R7KPaFh5pwelYjmmPuTr060rw7gzyIQl5J225y+R7A67gn11VERxB4ScbuHMC0cRL0iw3mHyrdU44GSHQNFbayCkpV1+E9R6dAaVOLWUcGMP4WO4TgMe3X+7SWlM/xAspdUylR+NZd0Nr0SAE9vpoA8MAFgRqpPdVL2YmLzJ9l2PHx6azBuznvaYch5IUhpzxVaUQQdj7Gpr7Qtt452bhjMczTPLJdrLIeaYfixYyErUSrmSd+CkgApB6GmDgFmHD0ezo1h2SZpCs0mSJLTyRJDb7SVuKIUN9jo7FIHF3E+EUDh/cpuOcVLhfbsz4ZjQXrkh1LhLiQr4QkE6SVH7UNFnm/Xog7KuezPeLXdvZ9YxrEMhg2PJ2UOpeW42hbjbxcJDhQr5wU8oB667eVL3HqXxdsvBydZM1s1lye3Op5Hr3FcKVsnnBbWpsJSEkHQ2Br1PWl3hVeOCOXcKouM5Y5BxXIIiEtruDaEsOu8p+FxL2iNkaBCuu900cT+JXDnEuBU7Asfyx3LZ0uI5EZWt73hSQ4Tta3AOUBIJ0B16Dp51FiH7c/vVHJcc0UUVcS0UUUUIRRRRQhFFFFCEUUUUIRRRRQhFFFFCEUUUUIRRRRQhFFFFCEUUUUIRRRRQhFFFFCEUUUUIRRRRQhFFFFCEUUUUIRRRRQhf//Z" style="height:32px;width:auto;display:block" alt="Shropshire Asbestos Services"><div style="font-size:11px;font-weight:700;opacity:.9;color:#fff;line-height:1;margin-top:3px;letter-spacing:.3px">v2.16.2</div></div>
     <div style="text-align:right"><div class="job-num" id="hdr-jobnum">–</div><div class="job-meta" id="hdr-jobmeta">No job loaded</div></div>
   </div>
 </div>
@@ -128,7 +128,7 @@ hr{border:none;border-top:1px solid var(--border);margin:10px 0}
   <button class="btn btn-g btn-full" onclick="newJob()">+ Create New Job</button>
   <button class="btn btn-o btn-full btn-sm" style="margin-top:6px" onclick="newJobFromCalendar()">&#128197; New Job from Calendar</button>
   <button class="btn btn-o btn-full btn-sm" style="margin-top:6px" onclick="newReinspectionFromJob()">&#8635; Reinspection</button>
-  <input type="file" id="reinsp-file-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" onchange="if(this.files&&this.files[0])handleReinspReport(this.files[0]);this.value='';">
+  <input type="file" id="reinsp-file-input" accept=".docx,.pdf,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,application/msword,application/octet-stream" style="display:none" onchange="if(this.files&&this.files[0])handleReinspReport(this.files[0]);this.value='';">
   <div id="sync-row" style="display:none;font-size:11px;color:#777;text-align:center;margin:6px 0 0"><span id="sync-status">Sync: …</span> · <a href="#" onclick="runSync(true);return false" style="color:var(--purple-mid);text-decoration:none;font-weight:700">Sync now</a></div>
   <input type="file" id="ics-import-file" accept=".ics,text/calendar,text/plain" style="display:none" onchange="if(this.files[0])importIcsFile(this.files[0]);this.value=''">
   <div class="sh">Saved Jobs <span id="job-count" style="font-weight:400;font-size:10px;color:#999"></span></div>
@@ -1616,9 +1616,18 @@ function createReinspectionFrom(oldJob){
 async function pickReinspReportFile(){
   try{
     if(window.showOpenFilePicker){
-      const opts={types:[{description:'Survey report (.docx)',accept:{'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx']}}],multiple:false};
+      const opts={types:[{description:'Survey report (Word or PDF)',accept:{
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx'],
+        'application/pdf':['.pdf'],
+        'application/msword':['.doc']}}],multiple:false};
       try{const d=await _getReportDir();if(d)opts.startIn=d;}catch(e){}
-      const hs=await window.showOpenFilePicker(opts);
+      let hs;
+      try{hs=await window.showOpenFilePicker(opts);}
+      catch(e1){
+        if(e1&&e1.name==='AbortError')return;
+        delete opts.startIn; // a stale folder handle can break startIn — retry without it
+        hs=await window.showOpenFilePicker(opts);
+      }
       if(hs&&hs[0])handleReinspReport(await hs[0].getFile());
     }else{
       document.getElementById('reinsp-file-input').click();
@@ -1628,14 +1637,159 @@ async function pickReinspReportFile(){
 async function handleReinspReport(file){
   try{
     toast('Reading '+file.name+'…');
-    const zip=new JSZip();
-    await zip.loadAsync(await file.arrayBuffer());
-    const doc=zip.file('word/document.xml');
-    if(!doc){toast('That file is not a Word report');return;}
-    const parsed=_parseReportXml(await doc.async('string'),file.name);
-    if(!parsed.samples.length){toast('No data sheets with positive / no-access items found in that report');return;}
+    const buf=await file.arrayBuffer();
+    const head=new Uint8Array(buf.slice(0,4));
+    let parsed;
+    if(head[0]===0x25&&head[1]===0x50&&head[2]===0x44&&head[3]===0x46){        // %PDF
+      parsed=await _parsePdfReport(buf,file.name);
+    }else if(head[0]===0x50&&head[1]===0x4B){                                  // PK = docx
+      const zip=new JSZip();
+      await zip.loadAsync(buf);
+      const doc=zip.file('word/document.xml');
+      if(!doc){toast('That file is not a Word report');return;}
+      parsed=_parseReportXml(await doc.async('string'),file.name);
+    }else if(head[0]===0xD0&&head[1]===0xCF){                                  // old binary .doc
+      toast('That is an old-style .doc — open it in Word and Save As .docx or PDF, then try again');return;
+    }else{toast('That file is not a Word or PDF report');return;}
+    if(!parsed.samples.length){toast('No data sheets found in that report');return;}
     createReinspectionFrom(parsed);
   }catch(e){console.warn('report parse',e);toast('Could not read that report');}
+}
+// PDF reports: rebuild the datasheet tables from the text positions on each
+// page (pdf.js is already embedded for the appendix attachments).
+async function _parsePdfReport(buf,fname){
+  const pdfjsLib=await _loadPdfjs();
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const out={number:'',job:{},samples:[],photos:{},sitePhoto:null};
+  const fm=/J\d{3,}/.exec(fname||'');if(fm)out.number=fm[0];
+  const stripScore=v=>String(v||'').replace(/\s*\(\d+\)\s*$/,'').trim();
+  const naBlank=v=>/^n\/?a$/i.test((v||'').trim())?'':(v||'').trim();
+  for(let p=1;p<=doc.numPages;p++){
+    const pg=await doc.getPage(p);
+    const vp=pg.getViewport({scale:1});
+    const tc=await pg.getTextContent();
+    // visual coordinates (x right, y DOWN) — Util.applyTransform handles rotated pages
+    const m=vp.transform; // 2x3 matrix: maps PDF space -> visual space (x right, y down), rotation included
+    const items=tc.items.filter(it=>it.str&&it.str.trim()).map(it=>{
+      const px=it.transform[4],py=it.transform[5];
+      return {s:it.str.trim(),x:m[0]*px+m[2]*py+m[4],y:m[1]*px+m[3]*py+m[5]};
+    });
+    items.sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+    // ---- Contract Review style "label: value" lines (top-to-bottom) ----
+    const lines=[];
+    items.forEach(it=>{
+      const L=lines[lines.length-1];
+      if(L&&Math.abs(L.y-it.y)<3.5)L.items.push(it);
+      else lines.push({y:it.y,items:[it]});
+    });
+    lines.forEach(L=>{L.items.sort((a,b)=>a.x-b.x);L.text=L.items.map(i=>i.s).join(' ').replace(/\s+/g,' ').trim();});
+    const grab=(label,key)=>{
+      if(out.job[key])return;
+      for(let i=0;i<lines.length;i++){
+        const t=lines[i].text;
+        if(t.toLowerCase().indexOf(label.toLowerCase())===0&&t.length>label.length+1){
+          let v=t.slice(label.length).replace(/^[:\s]+/,'').trim();
+          const vIt=lines[i].items.filter(it=>it.x>lines[i].items[0].x+40);
+          const vx=vIt.length?vIt[0].x:null;
+          for(let k=1;k<=3&&i+k<lines.length;k++){
+            const nl=lines[i+k];
+            if(vx!=null&&nl.items.length&&Math.abs(nl.items[0].x-vx)<10&&(nl.y-lines[i].y)<20*k&&!/:/.test(nl.text))v+=', '+nl.text;
+            else break;
+          }
+          out.job[key]=v;return;
+        }
+      }
+    };
+    grab('Client name:','CLIENT_NAME');grab('Client address:','CLIENT_ADDRESS');grab('Client contact:','CLIENT_CONTACT');
+    grab('Date of survey:','SURVEY_DATE');grab('Name and address of site:','SITE_ADDRESS');
+    if(!out.number){const jm=lines.map(L=>L.text).join(' ').match(/Job Number(?: Reference)?:?\s*(J\d{3,})/);if(jm)out.number=jm[1];}
+    // ---- datasheet tables (item-based, y grows down) ----
+    const anchors=items.filter(it=>/^Sample No/.test(it.s));
+    anchors.forEach(A=>{
+      const near=(match,lo,hi)=>{ // nearest matching item with y in (lo,hi)
+        let best=null;
+        items.forEach(it=>{if(match(it.s)&&it.y>lo&&it.y<hi){if(!best||Math.abs(it.y-A.y)<Math.abs(best.y-A.y))best=it;}});
+        return best;
+      };
+      const sv=near(s=>/^Survey Date/.test(s),A.y-140,A.y-5);
+      const bd=near(s=>s==='Building',sv?sv.y+3:A.y-90,A.y-5);
+      const mr=near(s=>/^Material Risk Score/.test(s),A.y+5,A.y+120);
+      const ra=near(s=>/^Recommended action/.test(s),A.y+5,A.y+180);
+      const sc=near(s=>/^Surveyor comments/.test(s),A.y+5,A.y+220);
+      if(!sv&&!bd)return;
+      const rowLabels=(rowIt,defs)=>{ // label items sharing the row's y
+        const cols=[];
+        items.forEach(it=>{
+          if(Math.abs(it.y-rowIt.y)>3.5)return;
+          defs.forEach(d=>{if(d.re.test(it.s))cols.push({label:d.k,x:it.x});});
+        });
+        cols.sort((a,b)=>a.x-b.x);return cols;
+      };
+      const bandVals=(cols,topY,botY,maxX)=>{
+        const vals={};cols.forEach(c=>vals[c.label]='');
+        const cell={};cols.forEach(c=>cell[c.label]=[]);
+        items.forEach(it=>{
+          if(it.y<=topY+3||it.y>=botY-3)return;
+          if(maxX!=null&&it.x>=maxX)return;
+          if(/^\(S,\s*SP|^\(S,SP/i.test(it.s))return; // "(S,SP,P,As)" label continuation
+          let ci=-1;
+          for(let c=0;c<cols.length;c++){if(it.x>=cols[c].x-8&&(c===cols.length-1||it.x<cols[c+1].x-8))ci=c;}
+          if(ci>=0)cell[cols[ci].label].push(it);
+        });
+        cols.forEach(c=>{cell[c.label].sort((a,b)=>(a.y-b.y)||(a.x-b.x));vals[c.label]=cell[c.label].map(i=>i.s).join(' ').replace(/\s+/g,' ').trim();});
+        return vals;
+      };
+      let svv={},bdv={},nov={};
+      const svCols=sv?rowLabels(sv,[{k:'Survey Date',re:/^Survey Date/},{k:'Lead Surveyor',re:/^Lead Surveyor/},{k:'Survey Type',re:/^Survey Type/},{k:'Floor',re:/^Floor$/},{k:'Analysis',re:/^Analysis$/}]):[];
+      const anX=(svCols.find(c=>c.label==='Analysis')||{}).x;
+      if(sv)svv=bandVals(svCols,sv.y,bd?bd.y:A.y);
+      if(sv&&anX!=null){
+        // the Analysis cell is a tall merged cell — its text can sit anywhere between the
+        // survey label row and the sample-no row, so scan that whole block in its column
+        const av=items.filter(it=>it.y>sv.y+3&&it.y<A.y-3&&it.x>=anX-8&&!/^Analysis$|^Accessibility$/.test(it.s)).sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+        if(av.length)svv['Analysis']=av.map(i=>i.s).join(' ').replace(/\s+/g,' ').trim();
+      }
+      if(bd)bdv=bandVals(rowLabels(bd,[{k:'Building',re:/^Building$/},{k:'Room',re:/^Room$/},{k:'Item',re:/^Item$/},{k:'Quantity',re:/^Quantity$/}]),bd.y,A.y,anX!=null?anX-8:null);
+      nov=bandVals(rowLabels(A,[{k:'Sample No',re:/^Sample No/},{k:'Product Type',re:/^Product Type$/},{k:'Surface Treatment',re:/^Surface Treatment$/},{k:'Condition',re:/^Condition$/},{k:'Accessibility',re:/^Accessibility$/}]),A.y,mr?mr.y:A.y+60);
+      let score='';
+      if(mr){
+        const below=items.filter(it=>it.y>mr.y+3&&it.y<(ra?ra.y-3:mr.y+25)&&it.x<mr.x+220&&/^\d+$|^N\/?A$/i.test(it.s)).sort((a,b)=>a.y-b.y)[0];
+        if(below){const n=parseInt(below.s);score=isNaN(n)?'':n;}
+      }
+      const sameRowVal=lbl=>lbl?items.filter(it=>Math.abs(it.y-lbl.y)<3.5&&it.x>lbl.x+80).sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ').trim():'';
+      const act=sameRowVal(ra),com=sameRowVal(sc);
+      const rawNo=(nov['Sample No']||'').trim();
+      let analysis=stripScore(svv['Analysis']||'');
+      if(/^no asbestos/i.test(analysis))analysis='NADIS';
+      const sm=/^(.*?)\s*\(([A-Za-z]+)\)\s*$/.exec(rawNo);
+      const stMap={S:'S - Sampled',P:'P - Presumed',SP:'SP - Strongly Presumed',AS:'AS - Former Sample'};
+      const no=(sm?sm[1]:rawNo).trim();
+      const st=sm&&stMap[sm[2].toUpperCase()]?stMap[sm[2].toUpperCase()]:'S - Sampled';
+      const noAccess=/no access|inaccess/i.test((svv['Analysis']||'')+' '+(bdv['Item']||'')+' '+com);
+      out.samples.push({
+        _id:'p'+Math.random().toString(36).slice(2,9),
+        SAMPLE_NO:noAccess?'':naBlank(no),SAMPLE_STATUS:noAccess?'Room Inaccessible':st,ROOM_ONLY:noAccess,
+        FLOOR:naBlank(svv['Floor']),BUILDING:naBlank(bdv['Building']),ROOM_REF:naBlank(bdv['Room']),
+        ITEM_DESCRIPTION:naBlank(bdv['Item']),ITEMS_INSPECTED:naBlank(bdv['Item']),QUANTITY:naBlank(bdv['Quantity']),
+        PRODUCT_TYPE:naBlank(stripScore(nov['Product Type'])),SURFACE_TREATMENT:naBlank(nov['Surface Treatment']),
+        CONDITION:naBlank(nov['Condition']),ACCESSIBILITY:naBlank(nov['Accessibility']),
+        ANALYSIS_RESULT:noAccess?'':naBlank(analysis),LAB_CERT_NO:'',
+        RISK_SCORE:score,RECOMMENDED_ACTION:naBlank(act),SURVEYOR_COMMENTS:naBlank(com)||'N/A',
+        _resultVal:noAccess?'':naBlank(analysis),
+        _pts:(function(){const m=/\((\d+)\)\s*$/.exec(nov['Product Type']||'');return m?m[1]:'';})(),
+        _sts:(function(){const m=/\((\d+)\)\s*$/.exec(nov['Surface Treatment']||'');return m?m[1]:'';})(),
+        _ds:(function(){const m=/\((\d+)\)\s*$/.exec(nov['Condition']||'');return m?m[1]:'';})(),
+        _condVal:(function(){const m=/\((\d+)\)\s*$/.exec(nov['Condition']||'');return m?m[1]:'';})(),
+        _ats:(function(){const m=/\((\d+)\)\s*$/.exec(svv['Analysis']||'');return m?m[1]:'';})()
+      });
+    });
+  }
+  if(out.job.SITE_ADDRESS){
+    const parts=out.job.SITE_ADDRESS.split(/,\s*/);const pcRe=/^[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}$/i;
+    if(parts.length>1&&pcRe.test(parts[parts.length-1].trim())){out.job.SITE_POSTCODE=parts.pop().trim();out.job.SITE_ADDRESS=parts.join(', ');}
+  }
+  if(!out.number)out.number='previous report';
+  return out;
 }
 function _parseReportXml(xml,fname){
   const unesc=s=>String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
@@ -1712,7 +1866,6 @@ function _parseReportXml(xml,fname){
       _ats:(function(){const m=/\((\d+)\)\s*$/.exec(below(rows,'Analysis',true));return m?m[1]:'';})(),
       _condVal:(function(){const m=/\((\d+)\)\s*$/.exec(below(rows,'Condition',true));return m?m[1]:'';})()
     };
-    // N/A cells read back as blank-ish
     ['PRODUCT_TYPE','SURFACE_TREATMENT','CONDITION','ACCESSIBILITY','ANALYSIS_RESULT','SAMPLE_NO'].forEach(k=>{if(/^n\/?a$/i.test(s[k]||''))s[k]='';});
     if(s.ROOM_ONLY)s.ANALYSIS_RESULT='';
     out.samples.push(s);
