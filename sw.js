@@ -1,4 +1,4 @@
-/* SAS Survey App service worker — offline support.
+/* SAS Survey App service worker — offline support. (build retrigger)
    IMPORTANT: bump CACHE (the version) on EVERY release so clients pick up the new build.
    Strategy: network-first for the app page (fresh when online, cached when offline);
    cache-first for static assets. App is a single self-contained index.html. */
